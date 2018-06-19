@@ -205,7 +205,11 @@ combineTypesExpression =
 
 extendTypesExpression :: Parser a -> Parser (Expr Src a)
 extendTypesExpression =
-    makeOperatorExpression timesExpression _extendTypes ExtendTypes
+    makeOperatorExpression extendRecordTypesExpression _extendTypes ExtendTypes
+
+extendRecordTypesExpression :: Parser a -> Parser (Expr Src a)
+extendRecordTypesExpression =
+    makeOperatorExpression timesExpression _extendRecordTypes ExtendRecordTypes
 
 timesExpression :: Parser a -> Parser (Expr Src a)
 timesExpression =

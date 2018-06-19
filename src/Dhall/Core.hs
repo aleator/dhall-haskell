@@ -8,7 +8,7 @@
 {-# LANGUAGE RankNTypes         #-}
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE UnicodeSyntax      #-}
-{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -Wall -Werror=incomplete-patterns #-}
 
 {-| This module contains the core calculus for the Dhall language.
 
@@ -387,7 +387,9 @@ data Expr s a
     | Combine (Expr s a) (Expr s a)
     -- | > CombineTypes x y                         ~  x ⩓ y
     | CombineTypes (Expr s a) (Expr s a)
-    -- | > ExtendTypes x y                         ~  x \\\ y
+    -- | > ExtendRecordTypes x y                    ~  x /// y
+    | ExtendRecordTypes (Expr s a) (Expr s a)
+    -- | > ExtendTypes x y                          ~  x \\\ y
     | ExtendTypes (Expr s a) (Expr s a)
     -- | > CombineRight x y                         ~  x ⫽ y
     | Prefer (Expr s a) (Expr s a)
@@ -414,69 +416,70 @@ instance Applicative (Expr s) where
 instance Monad (Expr s) where
     return = pure
 
-    Const a              >>= _ = Const a
-    Var a                >>= _ = Var a
-    Lam a b c            >>= k = Lam a (b >>= k) (c >>= k)
-    Pi  a b c            >>= k = Pi a (b >>= k) (c >>= k)
-    App a b              >>= k = App (a >>= k) (b >>= k)
-    Let a b c d          >>= k = Let a (fmap (>>= k) b) (c >>= k) (d >>= k)
-    Annot a b            >>= k = Annot (a >>= k) (b >>= k)
-    Bool                 >>= _ = Bool
-    BoolLit a            >>= _ = BoolLit a
-    BoolAnd a b          >>= k = BoolAnd (a >>= k) (b >>= k)
-    BoolOr  a b          >>= k = BoolOr  (a >>= k) (b >>= k)
-    BoolEQ  a b          >>= k = BoolEQ  (a >>= k) (b >>= k)
-    BoolNE  a b          >>= k = BoolNE  (a >>= k) (b >>= k)
-    BoolIf a b c         >>= k = BoolIf (a >>= k) (b >>= k) (c >>= k)
-    Natural              >>= _ = Natural
-    NaturalLit a         >>= _ = NaturalLit a
-    NaturalFold          >>= _ = NaturalFold
-    NaturalBuild         >>= _ = NaturalBuild
-    NaturalIsZero        >>= _ = NaturalIsZero
-    NaturalEven          >>= _ = NaturalEven
-    NaturalOdd           >>= _ = NaturalOdd
-    NaturalToInteger     >>= _ = NaturalToInteger
-    NaturalShow          >>= _ = NaturalShow
-    NaturalPlus  a b     >>= k = NaturalPlus  (a >>= k) (b >>= k)
-    NaturalTimes a b     >>= k = NaturalTimes (a >>= k) (b >>= k)
-    Integer              >>= _ = Integer
-    IntegerLit a         >>= _ = IntegerLit a
-    IntegerShow          >>= _ = IntegerShow
-    IntegerToDouble      >>= _ = IntegerToDouble
-    Double               >>= _ = Double
-    DoubleLit a          >>= _ = DoubleLit a
-    DoubleShow           >>= _ = DoubleShow
-    Text                 >>= _ = Text
-    TextLit (Chunks a b) >>= k = TextLit (Chunks (fmap (fmap (>>= k)) a) b)
-    TextAppend a b       >>= k = TextAppend (a >>= k) (b >>= k)
-    List                 >>= _ = List
-    ListLit a b          >>= k = ListLit (fmap (>>= k) a) (fmap (>>= k) b)
-    ListAppend a b       >>= k = ListAppend (a >>= k) (b >>= k)
-    ListBuild            >>= _ = ListBuild
-    ListFold             >>= _ = ListFold
-    ListLength           >>= _ = ListLength
-    ListHead             >>= _ = ListHead
-    ListLast             >>= _ = ListLast
-    ListIndexed          >>= _ = ListIndexed
-    ListReverse          >>= _ = ListReverse
-    Optional             >>= _ = Optional
-    OptionalLit a b      >>= k = OptionalLit (a >>= k) (fmap (>>= k) b)
-    OptionalFold         >>= _ = OptionalFold
-    OptionalBuild        >>= _ = OptionalBuild
-    Record    a          >>= k = Record (fmap (>>= k) a)
-    RecordLit a          >>= k = RecordLit (fmap (>>= k) a)
-    Union     a          >>= k = Union (fmap (>>= k) a)
-    UnionLit a b c       >>= k = UnionLit a (b >>= k) (fmap (>>= k) c)
-    Combine a b          >>= k = Combine (a >>= k) (b >>= k)
-    CombineTypes a b     >>= k = CombineTypes (a >>= k) (b >>= k)
-    ExtendTypes a b     >>= k = ExtendTypes (a >>= k) (b >>= k)
-    Prefer a b           >>= k = Prefer (a >>= k) (b >>= k)
-    Merge a b c          >>= k = Merge (a >>= k) (b >>= k) (fmap (>>= k) c)
-    Constructors a       >>= k = Constructors (a >>= k)
-    Field a b            >>= k = Field (a >>= k) b
-    Project a b          >>= k = Project (a >>= k) b
-    Note a b             >>= k = Note a (b >>= k)
-    Embed a              >>= k = k a
+    Const a                 >>= _ = Const a
+    Var a                   >>= _ = Var a
+    Lam a b c               >>= k = Lam a (b >>= k) (c >>= k)
+    Pi  a b c               >>= k = Pi a (b >>= k) (c >>= k)
+    App a b                 >>= k = App (a >>= k) (b >>= k)
+    Let a b c d             >>= k = Let a (fmap (>>= k) b) (c >>= k) (d >>= k)
+    Annot a b               >>= k = Annot (a >>= k) (b >>= k)
+    Bool                    >>= _ = Bool
+    BoolLit a               >>= _ = BoolLit a
+    BoolAnd a b             >>= k = BoolAnd (a >>= k) (b >>= k)
+    BoolOr  a b             >>= k = BoolOr  (a >>= k) (b >>= k)
+    BoolEQ  a b             >>= k = BoolEQ  (a >>= k) (b >>= k)
+    BoolNE  a b             >>= k = BoolNE  (a >>= k) (b >>= k)
+    BoolIf a b c            >>= k = BoolIf (a >>= k) (b >>= k) (c >>= k)
+    Natural                 >>= _ = Natural
+    NaturalLit a            >>= _ = NaturalLit a
+    NaturalFold             >>= _ = NaturalFold
+    NaturalBuild            >>= _ = NaturalBuild
+    NaturalIsZero           >>= _ = NaturalIsZero
+    NaturalEven             >>= _ = NaturalEven
+    NaturalOdd              >>= _ = NaturalOdd
+    NaturalToInteger        >>= _ = NaturalToInteger
+    NaturalShow             >>= _ = NaturalShow
+    NaturalPlus  a b        >>= k = NaturalPlus  (a >>= k) (b >>= k)
+    NaturalTimes a b        >>= k = NaturalTimes (a >>= k) (b >>= k)
+    Integer                 >>= _ = Integer
+    IntegerLit a            >>= _ = IntegerLit a
+    IntegerShow             >>= _ = IntegerShow
+    IntegerToDouble         >>= _ = IntegerToDouble
+    Double                  >>= _ = Double
+    DoubleLit a             >>= _ = DoubleLit a
+    DoubleShow              >>= _ = DoubleShow
+    Text                    >>= _ = Text
+    TextLit (Chunks a b)    >>= k = TextLit (Chunks (fmap (fmap (>>= k)) a) b)
+    TextAppend a b          >>= k = TextAppend (a >>= k) (b >>= k)
+    List                    >>= _ = List
+    ListLit a b             >>= k = ListLit (fmap (>>= k) a) (fmap (>>= k) b)
+    ListAppend a b          >>= k = ListAppend (a >>= k) (b >>= k)
+    ListBuild               >>= _ = ListBuild
+    ListFold                >>= _ = ListFold
+    ListLength              >>= _ = ListLength
+    ListHead                >>= _ = ListHead
+    ListLast                >>= _ = ListLast
+    ListIndexed             >>= _ = ListIndexed
+    ListReverse             >>= _ = ListReverse
+    Optional                >>= _ = Optional
+    OptionalLit a b         >>= k = OptionalLit (a >>= k) (fmap (>>= k) b)
+    OptionalFold            >>= _ = OptionalFold
+    OptionalBuild           >>= _ = OptionalBuild
+    Record    a             >>= k = Record (fmap (>>= k) a)
+    RecordLit a             >>= k = RecordLit (fmap (>>= k) a)
+    Union     a             >>= k = Union (fmap (>>= k) a)
+    UnionLit a b c          >>= k = UnionLit a (b >>= k) (fmap (>>= k) c)
+    Combine a b             >>= k = Combine (a >>= k) (b >>= k)
+    CombineTypes a b        >>= k = CombineTypes (a >>= k) (b >>= k)
+    ExtendTypes a b         >>= k = ExtendTypes (a >>= k) (b >>= k)
+    ExtendRecordTypes a b  >>= k = ExtendRecordTypes (a >>= k) (b >>= k)
+    Prefer a b              >>= k = Prefer (a >>= k) (b >>= k)
+    Merge a b c             >>= k = Merge (a >>= k) (b >>= k) (fmap (>>= k) c)
+    Constructors a          >>= k = Constructors (a >>= k)
+    Field a b               >>= k = Field (a >>= k) b
+    Project a b             >>= k = Project (a >>= k) b
+    Note a b                >>= k = Note a (b >>= k)
+    Embed a                 >>= k = k a
 
 instance Bifunctor Expr where
     first _ (Const a             ) = Const a
@@ -534,7 +537,8 @@ instance Bifunctor Expr where
     first k (UnionLit a b c      ) = UnionLit a (first k b) (fmap (first k) c)
     first k (Combine a b         ) = Combine (first k a) (first k b)
     first k (CombineTypes a b    ) = CombineTypes (first k a) (first k b)
-    first k (ExtendTypes a b    ) = ExtendTypes (first k a) (first k b)
+    first k (ExtendTypes a b)      = ExtendTypes (first k a) (first k b)
+    first k (ExtendRecordTypes a b) = ExtendRecordTypes (first k a) (first k b)
     first k (Prefer a b          ) = Prefer (first k a) (first k b)
     first k (Merge a b c         ) = Merge (first k a) (first k b) (fmap (first k) c)
     first k (Constructors a      ) = Constructors (first k a)
@@ -780,6 +784,10 @@ shift d v (ExtendTypes a b) = ExtendTypes a' b'
   where
     a' = shift d v a
     b' = shift d v b
+shift d v (ExtendRecordTypes a b) = ExtendRecordTypes a' b'
+  where
+    a' = shift d v a
+    b' = shift d v b
 shift d v (Prefer a b) = Prefer a' b'
   where
     a' = shift d v a
@@ -929,6 +937,10 @@ subst x e (CombineTypes a b) = CombineTypes a' b'
     a' = subst x e a
     b' = subst x e b
 subst x e (ExtendTypes a b) = ExtendTypes a' b'
+  where
+    a' = subst x e a
+    b' = subst x e b
+subst x e (ExtendRecordTypes a b) = ExtendRecordTypes a' b'
   where
     a' = subst x e a
     b' = subst x e b
@@ -1194,6 +1206,12 @@ alphaNormalize (ExtendTypes l₀ r₀) =
     l₁ = alphaNormalize l₀
 
     r₁ = alphaNormalize r₀
+alphaNormalize (ExtendRecordTypes l₀ r₀) =
+    ExtendRecordTypes l₁ r₁
+  where
+    l₁ = alphaNormalize l₀
+
+    r₁ = alphaNormalize r₀
 alphaNormalize (Prefer l₀ r₀) =
     Prefer l₁ r₁
   where
@@ -1320,6 +1338,7 @@ denote (UnionLit a b c      ) = UnionLit a (denote b) (fmap denote c)
 denote (Combine a b         ) = Combine (denote a) (denote b)
 denote (CombineTypes a b    ) = CombineTypes (denote a) (denote b)
 denote (ExtendTypes a b     ) = ExtendTypes (denote a) (denote b)
+denote (ExtendRecordTypes a b) = ExtendRecordTypes (denote a) (denote b)
 denote (Prefer a b          ) = Prefer (denote a) (denote b)
 denote (Merge a b c         ) = Merge (denote a) (denote b) (fmap denote c)
 denote (Constructors a      ) = Constructors (denote a)
@@ -1646,6 +1665,17 @@ normalizeWith ctx e0 = loop (denote e0)
         decide l r =
             ExtendTypes l r
 
+    ExtendRecordTypes x y -> decide (loop x) (loop y)
+      where
+        decide (Record m) r | Data.HashMap.Strict.InsOrd.null m =
+            r
+        decide l (Record n) | Data.HashMap.Strict.InsOrd.null n =
+            l
+        decide (Record m) (Record n) =
+            Record (Data.HashMap.Strict.InsOrd.union n m)
+        decide l r =
+            ExtendRecordTypes l r
+
     Prefer x y -> decide (loop x) (loop y)
       where
         decide (RecordLit m) r | Data.HashMap.Strict.InsOrd.null m =
@@ -1886,6 +1916,13 @@ isNormalized e = case denote e of
         combine = case x of
             Union _ -> case y of
                 Union _ -> False
+                _ -> True
+            _ -> True
+    ExtendRecordTypes x y -> isNormalized x && isNormalized y && combine
+      where
+        combine = case x of
+            Record _ -> case y of
+                Record _ -> False
                 _ -> True
             _ -> True
     Prefer x y -> isNormalized x && isNormalized y && combine
